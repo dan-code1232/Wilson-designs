@@ -1,0 +1,594 @@
+!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fixed Navbar + Light Rays (single file)</title>
+  <style>
+    /* Basic page */
+
+.subtitle { display:flex; gap:8px; align-items:center; justify-content:center; }
+.first-text { font-size:28px; font-weight:600; }
+.sec-text {
+  font-size:28px; font-weight:600; color:#ff8877;
+  display:inline-block; position:relative; white-space:nowrap;
+}
+.sec-text::after {
+  content:''; position:absolute; right:-2px; top:0; bottom:0; width:2px;
+  background:#4070F4; animation: caret .9s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: #010718;
+      color: #fff;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .page-wrapper {
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* NAVBAR / ACTIONS BAR - fixed overlay */
+    .actions-bar {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      height: 60px;
+      min-height: 52px;
+      width: min(900px, 92%);
+      max-width: 1100px;
+      z-index: 9999; /* above everything */
+      list-style: none;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      box-shadow:
+        0px 10px 20px rgba(0,0,0,0.35),
+        inset 2px -2px 8px rgba(255,255,255,0.03),
+        inset -2px 1px 6px rgba(0,0,0,0.25);
+      align-self: center;
+      overflow: hidden;
+    }
+
+    /* Make the inner content horizontally scrollable on small screens */
+    .actions-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      overflow-x: auto;
+      scrollbar-width: none; /* firefox */
+      -ms-overflow-style: none; /* IE 10+ */
+    }
+    .actions-inner::-webkit-scrollbar { display: none; }
+
+    /* The animated indicator (background highlight) */
+    .indicator {
+      position: absolute;
+      top: 6px;
+      left: 0;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(64,112,244,0.14), rgba(255,136,119,0.08));
+      transition: transform 0.28s cubic-bezier(.2,.9,.2,1), width 0.28s cubic-bezier(.2,.9,.2,1);
+      z-index: 0;
+      pointer-events: none;
+      will-change: transform, width;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+
+    .action {
+      --pad-x: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      height: 48px;
+      border-radius: 12px;
+      padding: 0 var(--pad-x);
+      color: #ff8877;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 1;
+      user-select: none;
+      transition: color 0.18s ease, transform 0.12s ease;
+      flex: 0 0 auto; /* don't shrink */
+      background: transparent;
+      border: none;
+    }
+    .action:hover { transform: translateY(-3px); }
+    .action.selected { color: #fff; }
+
+    /* For very small screens reduce padding */
+    @media (max-width: 480px) {
+      .actions-bar { padding: 6px; top: 12px; height: 52px; }
+      .indicator { top: 4px; height: 44px; border-radius: 10px; }
+      .action { height: 44px; --pad-x: 12px; font-size: 14px; }
+    }
+
+    /* HERO */
+    .hero-image {
+      height: 80vh;
+      min-height: 420px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url("photographer.jpg") center/cover no-repeat;
+      color: #fff;
+    }
+    .hero-content { position: relative; z-index: 2; text-align: center; padding: 20px; }
+    .hero-content h1 { font-size: 48px; margin: 0 0 8px; }
+    .subtitle { display:flex; gap:8px; align-items:center; justify-content:center; margin-bottom:12px; }
+    .first-text { font-size:28px; font-weight:600; }
+    .sec-text { font-size:28px; font-weight:600; color:#ff8877; }
+    .hire-btn { margin-top: 12px; padding: 10px 20px; border: none; border-radius: 6px; background: #fff; color: #000; cursor: pointer; font-weight:600; z-index:2; }
+
+    .light-rays-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+      display: block;
+      mix-blend-mode: screen;
+    }
+
+    /* content */
+    main.content { padding: 120px 20px 80px; } /* give space under fixed navbar */
+    .controls { padding: 18px; text-align: center; position: relative; z-index: 2; }
+    .controls button { margin: 6px; padding: 8px 12px; }
+
+    /* small helper so the actions bar doesn't block click on top content when hidden logic used */
+    .actions-bar.hidden { transform: translateX(-50%) translateY(-12px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- NAVBAR: fixed, centered, overlaying content -->
+    <nav class="actions-bar" id="actionsBar" role="navigation" aria-label="Main">
+      <!-- indicator is positioned absolutely inside the bar -->
+      <div class="indicator" id="indicator" aria-hidden="true"></div>
+
+      <!-- inner scrollable row -->
+      <div class="actions-inner" id="actionsInner">
+        <button id="action0" class="action" data-index="0">home</button>
+        <button id="action1" class="action" data-index="1">about</button>
+        <button id="action2" class="action" data-index="2">projects</button>
+        <button id="action3" class="action" data-index="3">blog</button>
+        <button id="action4" class="action" data-index="4">contact</button>
+      </div>
+    </nav>
+
+    <header class="hero-image">
+      <div class="hero-content">
+        <h1>Daniel Howles</h1>
+        <div class="subtitle">
+          <span class="first-text">I'm a</span>
+          <span class="sec-text">Coder</span>
+        </div>
+        
+      </div>
+
+      <div id="lightRays" class="light-rays-container" aria-hidden="true"></div>
+    </header>
+
+    <main class="content">
+      <div class="controls">
+        <button id="toggleRays">Hide Rays</button>
+        <button id="toggleMouse">Toggle Mouse Influence</button>
+        <label style="color:#ccc;margin-left:12px;">
+          Rays Color:
+          <input type="color" id="colorPicker" value="#ffffff" />
+        </label>
+      </div>
+      <p style="text-align:center;color:#bbb;max-width:800px;margin:24px auto;">
+        Page content goes here. The fixed navbar stays above content and is horizontally scrollable on small screens.
+      </p>
+    </main>
+  </div>
+<script>
+  const words = ['Coder', 'Freelancer', 'Blogger', 'YouTuber'];
+  const el = document.querySelector('.sec-text');
+
+  let i = 0, j = 0, deleting = false, delay = 2500;
+  const typeSpeed = 200;
+  const deleteSpeed = 300;
+
+  function tick() {
+    const word = words[i % words.length];
+
+    if (!deleting) {
+      el.textContent = word.slice(0, j + 1);
+      j++;
+      if (j === word.length) { deleting = true; setTimeout(tick, delay); return; }
+      setTimeout(tick, typeSpeed);
+    } else {
+      el.textContent = word.slice(0, j - 1);
+      j--;
+      if (j === 0) { deleting = false; i++; setTimeout(tick, 300); return; }
+      setTimeout(tick, deleteSpeed);
+    }
+  }
+  tick();
+</script> 
+  <script>
+    /* ---------- Actions Bar behavior (responsive, indicator aligned) ---------- */
+    (function () {
+      const actionsBar = document.getElementById('actionsBar');
+      const actionsInner = document.getElementById('actionsInner');
+      const actions = Array.from(actionsInner.querySelectorAll('.action'));
+      const indicator = document.getElementById('indicator');
+
+      if (!actionsBar || !actionsInner || actions.length === 0 || !indicator) return;
+
+      // Calculate indicator geometry relative to the actionsBar
+      function updateIndicator(targetEl, animate = true) {
+        if (!targetEl) return;
+        // get bounding boxes relative to the parent container (actionsBar)
+        const parentRect = actionsBar.getBoundingClientRect();
+        const innerRect = actionsInner.getBoundingClientRect();
+        const elRect = targetEl.getBoundingClientRect();
+
+        // We want the left offset of the element inside actionsBar coordinate space
+        const offsetLeftInBar = (elRect.left - innerRect.left) + actionsInner.scrollLeft + (innerRect.left - parentRect.left);
+
+        // width should match the element width
+        const width = elRect.width;
+
+        if (!animate) indicator.style.transition = 'none';
+        indicator.style.width = width + 'px';
+        indicator.style.transform = `translateX(${offsetLeftInBar}px)`;
+        if (!animate) {
+          // force reflow then restore transition
+          requestAnimationFrame(() => { indicator.style.transition = ''; });
+        }
+
+        // If the action is partially out of view in the scrollable inner, center it
+        const visibleLeft = actionsInner.scrollLeft;
+        const visibleRight = visibleLeft + actionsInner.clientWidth;
+        const elStart = (elRect.left - innerRect.left) + actionsInner.scrollLeft;
+        const elEnd = elStart + elRect.width;
+
+        if (elStart < visibleLeft + 8) {
+          // scroll left a bit so element is visible with small padding
+          actionsInner.scrollTo({ left: Math.max(0, elStart - 8), behavior: 'smooth' });
+        } else if (elEnd > visibleRight - 8) {
+          // scroll right to show element
+          actionsInner.scrollTo({ left: Math.min(actionsInner.scrollWidth, elEnd - actionsInner.clientWidth + 8), behavior: 'smooth' });
+        }
+      }
+
+      function setSelected(index, animate = true) {
+        const idx = Math.max(0, Math.min(index | 0, actions.length - 1));
+        actions.forEach((el, i) => el.classList.toggle('selected', i === idx));
+        updateIndicator(actions[idx], animate);
+      }
+
+      // Click handlers
+      actions.forEach((el, i) => {
+        el.addEventListener('click', () => setSelected(i));
+      });
+
+      // On window resize or font load, recompute indicator
+      let resizeTimer = null;
+      function onResize() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          const selected = actions.find(a => a.classList.contains('selected')) || actions[0];
+          updateIndicator(selected, false);
+        }, 60);
+      }
+      window.addEventListener('resize', onResize);
+
+      // Initialize after layout is stable
+      window.requestAnimationFrame(() => setSelected(0, false));
+
+      // Expose setter for debug
+      window._setSelected = setSelected;
+    })();
+
+    /* ---------- Light rays WebGL (unchanged core, single-file) ---------- */
+    (function () {
+      const config = {
+        raysOrigin: 'top-center',
+        raysColor: '#ffffff',
+        raysSpeed: 1.0,
+        lightSpread: 1.0,
+        rayLength: 2.0,
+        pulsating: false,
+        fadeDistance: 1.0,
+        saturation: 1.0,
+        followMouse: true,
+        mouseInfluence: 0.12,
+        noiseAmount: 0.0,
+        distortion: 0.0
+      };
+
+      const hexToRgb = hex => {
+        const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [1,1,1];
+      };
+
+      const getAnchorAndDir = (origin, w, h) => {
+        const outside = 0.2;
+        switch (origin) {
+          case 'top-left': return { anchor: [0, -outside * h], dir: [0, 1] };
+          case 'top-right': return { anchor: [w, -outside * h], dir: [0, 1] };
+          case 'left': return { anchor: [-outside * w, 0.5 * h], dir: [1, 0] };
+          case 'right': return { anchor: [(1 + outside) * w, 0.5 * h], dir: [-1, 0] };
+          case 'bottom-left': return { anchor: [0, (1 + outside) * h], dir: [0, -1] };
+          case 'bottom-center': return { anchor: [0.5 * w, (1 + outside) * h], dir: [0, -1] };
+          case 'bottom-right': return { anchor: [w, (1 + outside) * h], dir: [0, -1] };
+          default: return { anchor: [0.5 * w, -outside * h], dir: [0, 1] };
+        }
+      };
+
+      const container = document.getElementById('lightRays');
+      if (!container) return;
+
+      const canvas = document.createElement('canvas');
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      canvas.setAttribute('aria-hidden', 'true');
+      container.appendChild(canvas);
+
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return;
+
+      const vertSrc = `
+attribute vec2 position;
+varying vec2 vUv;
+void main() {
+  vUv = position * 0.5 + 0.5;
+  gl_Position = vec4(position, 0.0, 1.0);
+}
+`;
+
+      const fragSrc = `
+precision highp float;
+uniform float iTime;
+uniform vec2 iResolution;
+uniform vec2 rayPos;
+uniform vec2 rayDir;
+uniform vec3 raysColor;
+uniform float raysSpeed;
+uniform float lightSpread;
+uniform float rayLength;
+uniform float pulsating;
+uniform float fadeDistance;
+uniform float saturation;
+uniform vec2 mousePos;
+uniform float mouseInfluence;
+uniform float noiseAmount;
+uniform float distortion;
+varying vec2 vUv;
+float noise(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
+float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord, float seedA, float seedB, float speed) {
+  vec2 sourceToCoord = coord - raySource;
+  vec2 dirNorm = normalize(sourceToCoord + vec2(1e-6));
+  float cosAngle = dot(dirNorm, rayRefDirection);
+  float distortedAngle = cosAngle + distortion * sin(iTime * 2.0 + length(sourceToCoord) * 0.01) * 0.2;
+  float spreadFactor = pow(max(distortedAngle, 0.0), 1.0 / max(lightSpread, 0.001));
+  float distance = length(sourceToCoord);
+  float maxDistance = iResolution.x * rayLength;
+  float lengthFalloff = clamp((maxDistance - distance) / maxDistance, 0.0, 1.0);
+  float fadeFalloff = clamp((iResolution.x * fadeDistance - distance) / (iResolution.x * fadeDistance), 0.5, 1.0);
+  float pulse = pulsating > 0.5 ? (0.8 + 0.2 * sin(iTime * speed * 3.0)) : 1.0;
+  float baseStrength = clamp(
+    (0.45 + 0.15 * sin(distortedAngle * seedA + iTime * speed)) +
+    (0.3 + 0.2 * cos(-distortedAngle * seedB + iTime * speed)),
+    0.0, 1.0
+  );
+  return baseStrength * lengthFalloff * fadeFalloff * spreadFactor * pulse;
+}
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 coord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
+  vec2 finalRayDir = rayDir;
+  if (mouseInfluence > 0.0) {
+    vec2 mouseScreenPos = mousePos * iResolution.xy;
+    vec2 mouseDirection = normalize(mouseScreenPos - rayPos);
+    finalRayDir = normalize(mix(rayDir, mouseDirection, mouseInfluence));
+  }
+  vec4 rays1 = vec4(1.0) * rayStrength(rayPos, finalRayDir, coord, 36.2214, 21.11349, 1.5 * raysSpeed);
+  vec4 rays2 = vec4(1.0) * rayStrength(rayPos, finalRayDir, coord, 22.3991, 18.0234, 1.1 * raysSpeed);
+  vec4 color = rays1 * 0.5 + rays2 * 0.4;
+  if (noiseAmount > 0.0) {
+    float n = noise(coord * 0.01 + iTime * 0.1);
+    color.rgb *= (1.0 - noiseAmount + noiseAmount * n);
+  }
+  float brightness = 1.0 - (coord.y / iResolution.y);
+  color.x *= 0.1 + brightness * 0.8;
+  color.y *= 0.3 + brightness * 0.6;
+  color.z *= 0.5 + brightness * 0.5;
+  if (saturation != 1.0) {
+    float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+    color.rgb = mix(vec3(gray), color.rgb, saturation);
+  }
+  color.rgb *= raysColor;
+  fragColor = color;
+}
+void main() {
+  vec4 color;
+  mainImage(color, gl_FragCoord.xy);
+  gl_FragColor = color;
+}
+`;
+
+      function compile(type, source) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, source);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+          console.error('Shader compile error:', gl.getShaderInfoLog(s));
+          return null;
+        }
+        return s;
+      }
+
+      const vert = compile(gl.VERTEX_SHADER, vertSrc);
+      const frag = compile(gl.FRAGMENT_SHADER, fragSrc);
+      if (!vert || !frag) return;
+
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vert);
+      gl.attachShader(prog, frag);
+      gl.bindAttribLocation(prog, 0, 'position');
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(prog));
+        return;
+      }
+      gl.useProgram(prog);
+
+      const vertices = new Float32Array([-1, -1, 3, -1, -1, 3]);
+      const vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+      const u_iTime = gl.getUniformLocation(prog, 'iTime');
+      const u_iResolution = gl.getUniformLocation(prog, 'iResolution');
+      const u_rayPos = gl.getUniformLocation(prog, 'rayPos');
+      const u_rayDir = gl.getUniformLocation(prog, 'rayDir');
+      const u_raysColor = gl.getUniformLocation(prog, 'raysColor');
+      const u_raysSpeed = gl.getUniformLocation(prog, 'raysSpeed');
+      const u_lightSpread = gl.getUniformLocation(prog, 'lightSpread');
+      const u_rayLength = gl.getUniformLocation(prog, 'rayLength');
+      const u_pulsating = gl.getUniformLocation(prog, 'pulsating');
+      const u_fadeDistance = gl.getUniformLocation(prog, 'fadeDistance');
+      const u_saturation = gl.getUniformLocation(prog, 'saturation');
+      const u_mousePos = gl.getUniformLocation(prog, 'mousePos');
+      const u_mouseInfluence = gl.getUniformLocation(prog, 'mouseInfluence');
+      const u_noiseAmount = gl.getUniformLocation(prog, 'noiseAmount');
+      const u_distortion = gl.getUniformLocation(prog, 'distortion');
+
+      let start = performance.now();
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let mouse = { x: 0.5, y: 0.5 };
+      let smoothMouse = { x: 0.5, y: 0.5 };
+
+      function resize() {
+        const wCSS = container.clientWidth;
+        const hCSS = container.clientHeight;
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, Math.floor(wCSS * dpr));
+        canvas.height = Math.max(1, Math.floor(hCSS * dpr));
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.uniform2f(u_iResolution, canvas.width, canvas.height);
+        const { anchor, dir } = getAnchorAndDir(config.raysOrigin, canvas.width, canvas.height);
+        gl.uniform2f(u_rayPos, anchor[0], anchor[1]);
+        gl.uniform2f(u_rayDir, dir[0], dir[1]);
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      function onMouseMove(e) {
+        const rect = container.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        mouse.x = x;
+        mouse.y = 1 - y;
+      }
+      if (config.followMouse) window.addEventListener('mousemove', onMouseMove);
+
+      gl.uniform3fv(u_raysColor, new Float32Array(hexToRgb(config.raysColor)));
+      gl.uniform1f(u_raysSpeed, config.raysSpeed);
+      gl.uniform1f(u_lightSpread, config.lightSpread);
+      gl.uniform1f(u_rayLength, config.rayLength);
+      gl.uniform1f(u_pulsating, config.pulsating ? 1.0 : 0.0);
+      gl.uniform1f(u_fadeDistance, config.fadeDistance);
+      gl.uniform1f(u_saturation, config.saturation);
+      gl.uniform2f(u_mousePos, mouse.x, mouse.y);
+      gl.uniform1f(u_mouseInfluence, config.mouseInfluence);
+      gl.uniform1f(u_noiseAmount, config.noiseAmount);
+      gl.uniform1f(u_distortion, config.distortion);
+
+      let rafId = null;
+      function loop(now) {
+        const t = (now - start) * 0.001;
+        const smoothing = 0.92;
+        smoothMouse.x = smoothMouse.x * smoothing + mouse.x * (1 - smoothing);
+        smoothMouse.y = smoothMouse.y * smoothing + mouse.y * (1 - smoothing);
+
+        gl.uniform1f(u_iTime, t);
+        gl.uniform2f(u_mousePos, smoothMouse.x, smoothMouse.y);
+        gl.uniform3fv(u_raysColor, new Float32Array(hexToRgb(config.raysColor)));
+
+        try { gl.drawArrays(gl.TRIANGLES, 0, 3); } catch (err) { console.warn('WebGL draw error', err); }
+        rafId = requestAnimationFrame(loop);
+      }
+      rafId = requestAnimationFrame(loop);
+
+      const toggleBtn = document.getElementById('toggleRays');
+      let visible = true;
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+          visible = !visible;
+          container.style.display = visible ? 'block' : 'none';
+          toggleBtn.textContent = visible ? 'Hide Rays' : 'Show Rays';
+        });
+      }
+
+      const toggleMouseBtn = document.getElementById('toggleMouse');
+      if (toggleMouseBtn) {
+        toggleMouseBtn.addEventListener('click', () => {
+          config.followMouse = !config.followMouse;
+          if (config.followMouse) {
+            window.addEventListener('mousemove', onMouseMove);
+            toggleMouseBtn.textContent = 'Disable Mouse Influence';
+          } else {
+            window.removeEventListener('mousemove', onMouseMove);
+            toggleMouseBtn.textContent = 'Enable Mouse Influence';
+          }
+        });
+      }
+
+      const colorPicker = document.getElementById('colorPicker');
+      if (colorPicker) colorPicker.addEventListener('input', (e) => { config.raysColor = e.target.value; });
+
+      const hire = document.getElementById('hireBtn');
+      if (hire) hire.addEventListener('click', () => alert('Thanks — contact form coming soon!'));
+
+      let observer = null;
+      try {
+        observer = new IntersectionObserver((entries) => {
+          const entry = entries[0];
+          if (!entry.isIntersecting) {
+            if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+          } else {
+            if (rafId === null) { start = performance.now(); rafId = requestAnimationFrame(loop); }
+          }
+        }, { threshold: 0.05 });
+        observer.observe(container);
+      } catch (e) {}
+
+      window.addEventListener('unload', () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        if (observer) observer.disconnect();
+        if (gl) {
+          try { const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (e) {}
+        }
+      });
+
+      window.requestAnimationFrame(resize);
+    })();
+  </script>
+</body>
+</html>
